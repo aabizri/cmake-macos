@@ -126,21 +126,69 @@ function(add_macos_iconset target)
   )
 endfunction()
 
-function(add_macos_bundle_info target)
+function(populate_macos_bundle_info output)
+  set(multi_value_keywords "PROPERTIES")
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "" "" "${multi_value_keywords}"
+  )
+
+  list(LENGTH ARGV_PROPERTIES len)
+  math(EXPR modulo "${len} % 2")
+
+  if(NOT(${modulo} EQUAL "0"))
+    message(FATAL_ERROR "Properties should be given in a KEY VALUE pair format")
+  endif()
+
+
+  list(APPEND boolean_strs
+    ON
+    TRUE
+    OFF
+    FALSE
+  )
+
+  math(EXPR iterate_to "${len} - 1")
+  foreach(idx RANGE 0 ${iterate_to} 2)
+    list(GET ARGV_PROPERTIES ${idx} key)
+    string(APPEND ${output} "\t<key>${key}</key>\n")
+
+    math(EXPR plus_one "${idx} + 1")
+    list(GET ARGV_PROPERTIES ${plus_one} value)
+
+    string(TOUPPER ${value} value_upper)
+    # We have to work around cmake's stringly typed view of the world
+    # By matching explicitly against values which should unambiguously be considered
+    # as booleans
+    if(value_upper IN_LIST boolean_strs)
+      if(value_upper)
+        string(APPEND ${output} "\t<true\>\n")
+      else()
+        string(APPEND ${output} "\t<false\>\n")
+      endif()
+    else()
+      string(APPEND ${output} "\t<string>${value}</string>\n")
+    endif()
+  endforeach()
+
+  return(PROPAGATE ${output})
+endfunction()
+
+function(add_macos_bundle_info)
   set(one_value_keywords
     DESTINATION
-    NAME
-    VERSION
-    DISPLAY_NAME
-    PUBLISHER_DISPLAY_NAME
-    IDENTIFIER
-    CATEGORY
+
+    # Base properties
     TARGET
     EXECUTABLE
   )
 
+  # Additional properties
+  set(multi_value_keywords
+    PROPERTIES
+  )
+
   cmake_parse_arguments(
-    PARSE_ARGV 1 ARGV "" "${one_value_keywords}" ""
+    PARSE_ARGV 0 ARGV "" "${one_value_keywords}" "${multi_value_keywords}"
   )
 
   if(NOT ARGV_DESTINATION)
@@ -149,24 +197,79 @@ function(add_macos_bundle_info target)
 
   cmake_path(ABSOLUTE_PATH ARGV_DESTINATION BASE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" NORMALIZE)
 
-  if(ARGV_TARGET)
-    set(ARGV_EXECUTABLE $<TARGET_FILE:${ARGV_TARGET}>)
+  list(APPEND properties 
+    CFBundleDevelopmentRegion en
+    CFBundleInfoDictionaryVersion "6.0"
+    CFBundleSignature "????"
+  
+    ${ARGV_PROPERTIES}
+  )
 
-    set(ARGV_EXECUTABLE_NAME $<TARGET_FILE_NAME:${ARGV_TARGET}>)
-  else()
-    cmake_path(ABSOLUTE_PATH ARGV_EXECUTABLE NORMALIZE)
+  if(NOT ("CFBundlePackageType" IN_LIST properties))
+    get_target_property(target_type ${ARGV_TARGET} TYPE)
+    if (target_type STREQUAL "MODULE_LIBRARY")
+      set(bundle_type "BNDL")
+    elseif(target_type STREQUAL "EXECUTABLE")
+      set(bundle_type "AAPL")
+    else()
+      message(FATAL_ERROR "Cannot create a bundle for something which is neither a bundle nor an app bundle")
+    endif()
 
-    cmake_path(GET ARGV_EXECUTABLE FILENAME ARGV_EXECUTABLE_NAME)
+    list(APPEND properties
+      CFBundlePackageType ${bundle_type}
+    )
   endif()
 
-  if(NOT DEFINED ARGV_DISPLAY_NAME)
-    set(ARGV_DISPLAY_NAME "${ARGV_NAME}")
+  if(NOT ("CFBundleExecutable" IN_LIST properties))
+    if(ARGV_TARGET)
+      set(ARGV_EXECUTABLE $<TARGET_FILE:${ARGV_TARGET}>)
+
+      set(ARGV_EXECUTABLE_NAME $<TARGET_FILE_NAME:${ARGV_TARGET}>)
+    else()
+      cmake_path(ABSOLUTE_PATH ARGV_EXECUTABLE NORMALIZE)
+
+      cmake_path(GET ARGV_EXECUTABLE FILENAME ARGV_EXECUTABLE_NAME)
+    endif()
+
+    list(APPEND properties
+      CFBundleExecutable ${ARGV_EXECUTABLE_NAME}
+    )
   endif()
 
-  file(READ "${macos_module_dir}/Info.plist" template)
+  if(NOT ("CFBundleName" IN_LIST properties))
+    if(ARGV_TARGET)
+      get_target_property(bundle_name ${arg_TARGET} NAME)
+    else()
+      message(WARNING "When no target is given, a 'CFBundleName' should be explicitely set in the properties, otherwise the executable base name is used as the name.")
+      list(FIND properties "CFBundleExecutable" bundle_executable_index)
+      math(EXPR value_index "${bundle_executable_index} + 1")
+      list(GET properties ${value_index} bundle_name)
+    endif()
 
+    list(APPEND properties
+      CFBundleName ${target_name}
+    )
+  endif()
+
+  if(NOT ("CFBundleDisplayName" IN_LIST properties))
+    list(FIND properties "CFBundleName" bundle_name_index)
+    math(EXPR value_index "${bundle_name_index} + 1")
+    list(GET properties ${value_index} bundle_name)
+
+    list(APPEND properties
+      CFBundleDisplayName ${bundle_name}
+    )
+  endif()
+
+
+  # The template only contains the skeleton around which we insert the dictionary
+  file(READ "${macos_module_dir}/Info.plist.in" template)
+
+  # The dict template parameter will be filled in by our formatted dictionary
+  populate_macos_bundle_info(dict PROPERTIES ${properties})
   string(CONFIGURE "${template}" template)
 
+  # A last pass is done through GENERATE so that generator expressions can be resolved
   file(GENERATE OUTPUT "${ARGV_DESTINATION}" CONTENT "${template}" NEWLINE_STYLE UNIX)
 endfunction()
 

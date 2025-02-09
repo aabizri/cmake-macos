@@ -80,14 +80,13 @@ Generates the `Info.plist` file with macOS application metadata.
 add_macos_bundle_info(
   <target>
   [DESTINATION <path>]
-  NAME <string>
-  VERSION <string>
-  DISPLAY_NAME <string>
-  PUBLISHER_DISPLAY_NAME <string>
-  IDENTIFIER <identifier>
-  CATEGORY <string>
+
+  # One of either:
   [TARGET <target>]
   [EXECUTABLE <path>]
+
+  # Additional Info.plist properties can be passed in the PROPERTIES option
+  [PROPERTIES [<key> <value>]]
 )
 ```
 
