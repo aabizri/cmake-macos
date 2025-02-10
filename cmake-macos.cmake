@@ -404,7 +404,7 @@ function(code_sign_macos target)
     list(APPEND args --entitlements "${ARGV_ENTITLEMENTS}")
   endif()
 
-  if(ARGS_KEYCHAIN)
+  if(ARGV_KEYCHAIN)
     list(APPEND args --keychain "${ARGV_KEYCHAIN}")
   endif()
 
@@ -414,6 +414,7 @@ function(code_sign_macos target)
     ${target}
     ALL
     COMMAND ${codesign} ${args} "${ARGV_PATH}"
+    COMMAND ${codesign} --verify "${ARGV_PATH}"
     DEPENDS ${ARGV_DEPENDS}
   )
 endfunction()
