@@ -382,10 +382,6 @@ function(code_sign_macos target)
     set(ARGV_PATH $<TARGET_FILE:${ARGV_TARGET}>)
 
     set(base $<TARGET_FILE_DIR:${ARGV_TARGET}>)
-  else()
-    cmake_path(ABSOLUTE_PATH ARGV_PATH NORMALIZE)
-
-    cmake_path(GET ARGV_PATH PARENT_PATH base)
   endif()
 
   if(NOT ARGV_IDENTITY)
@@ -400,7 +396,7 @@ function(code_sign_macos target)
   )
 
   if(ARGV_ENTITLEMENTS)
-    cmake_path(ABSOLUTE_PATH ARGV_ENTITLEMENTS NORMALIZE)
+    #cmake_path(ABSOLUTE_PATH ARGV_ENTITLEMENTS NORMALIZE)
     list(APPEND args --entitlements "${ARGV_ENTITLEMENTS}")
   endif()
 
