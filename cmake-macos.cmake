@@ -392,19 +392,17 @@ function(code_sign_macos target)
     set(ARGV_IDENTITY "Apple Development")
   endif()
 
-  if(ARGV_ENTITLEMENTS)
-    cmake_path(ABSOLUTE_PATH ARGV_ENTITLEMENTS NORMALIZE)
-  else()
-    cmake_path(APPEND base "Entitlements.plist" OUTPUT_VARIABLE ARGV_ENTITLEMENTS)
-  endif()
-
-  set(args
+  list(APPEND args 
     --timestamp
     --force
     --options runtime
-    --entitlements "${ARGV_ENTITLEMENTS}"
     --sign "${ARGV_IDENTITY}"
   )
+
+  if(ARGV_ENTITLEMENTS)
+    cmake_path(ABSOLUTE_PATH ARGV_ENTITLEMENTS NORMALIZE)
+    list(APPEND args --entitlements "${ARGV_ENTITLEMENTS}")
+  endif()
 
   if(ARGS_KEYCHAIN)
     list(APPEND args --keychain "${ARGV_KEYCHAIN}")
